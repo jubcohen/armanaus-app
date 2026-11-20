@@ -1,0 +1,14 @@
+# Configuração para publicar no Render (render.com) com um clique ("Blueprint")
+services:
+  - type: web
+    name: armanaus
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.13.0

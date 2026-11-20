@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <!-- viewport-fit=cover permite usar as áreas seguras do iPhone (notch, Dynamic Island) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ArManaus</title>
+  <meta name="description" content="Saiba onde e quando dá para se exercitar ao ar livre em Manaus, considerando fumaça e calor.">
+  <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <!-- Instalação na tela inicial (PWA) -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ArManaus">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <!-- Mapa real: Leaflet + OpenStreetMap -->
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <!-- O mapa fica sempre montado para não recarregar a cada troca de tela -->
+  <section id="tela-mapa" class="tela-mapa" aria-label="Mapa de Manaus" hidden>
+    <div id="mapa" class="mapa"></div>
+  </section>
+
+  <!-- Conteúdo das demais telas -->
+  <main id="app" tabindex="-1"></main>
+
+  <!-- Barra de abas flutuante (camada funcional, em vidro) -->
+  <nav id="abas" class="abas vidro" aria-label="Seções" hidden>
+    <a href="/mapa" data-aba="mapa" data-link>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
+      <span>Mapa</span>
+    </a>
+    <a href="/locais" data-aba="locais" data-link>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg>
+      <span>Locais</span>
+    </a>
+    <a href="/perfil" data-aba="perfil" data-link>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+      <span>Perfil</span>
+    </a>
+  </nav>
+  <a id="botao-busca" class="botao-busca vidro" href="/locais?buscar=1" data-link aria-label="Buscar local" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+  </a>
+
+  <!-- Avisos rápidos (toasts) -->
+  <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
