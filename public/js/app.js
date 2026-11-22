@@ -691,9 +691,9 @@ async function telaPerfil() {
     <div class="grupo">
       <button type="button" class="linha tocavel" data-acao="instalar" style="--recuo:58px"><span class="icone-linha" style="background:var(--destaque)">${icones.mais}</span>
         <span class="corpo"><span class="titulo">${instalado() ? 'Já está na Tela de Início' : 'Adicionar à Tela de Início'}</span></span>${icones.chevron}</button>
-      <a class="linha tocavel" href="/api/dados/leituras.csv" download style="--recuo:58px"><span class="icone-linha" style="background:#0A84FF">${icones.download}</span>
+      <a class="linha tocavel" href="/api/dados/leituras.csv" download style="--recuo:58px"><span class="icone-linha" style="background:#4F7FB8">${icones.download}</span>
         <span class="corpo"><span class="titulo">Baixar dados abertos (CSV)</span></span>${icones.chevron}</a>
-      ${u.papel === 'moderador' ? `<a class="linha tocavel" href="/moderacao" data-link style="--recuo:58px"><span class="icone-linha" style="background:#5E5CE6">${icones.escudo}</span>
+      ${u.papel === 'moderador' ? `<a class="linha tocavel" href="/moderacao" data-link style="--recuo:58px"><span class="icone-linha" style="background:#3A6BA5">${icones.escudo}</span>
         <span class="corpo"><span class="titulo">Moderação</span></span>${icones.chevron}</a>` : ''}
     </div>
 
