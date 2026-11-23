@@ -184,29 +184,90 @@ function iniciarMapa() {
   if (estado.mapa || !window.L) return;
   const escuro = matchMedia('(prefers-color-scheme: dark)').matches;
   estado.mapa = L.map('mapa', { zoomControl: false, attributionControl: true }).setView([-3.075, -60.02], 12);
-  // Base do OpenStreetMap com o estilo claro/escuro da CARTO
-  L.tileLayer(`https://{s}.basemaps.cartocdn.com/${escuro ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`, {
-    maxZoom: 19, subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  }).addTo(estado.mapa);
+  // Duas bases: mapa (OpenStreetMap com o estilo claro/escuro da CARTO) e satélite (imagens da Esri)
+  estado.bases = {
+    mapa: L.tileLayer(`https://{s}.basemaps.cartocdn.com/${escuro ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`, {
+      maxZoom: 19, subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    }),
+    satelite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, maxNativeZoom: 18,
+      attribution: 'Imagens &copy; Esri, Maxar, Earthstar Geographics e a comunidade GIS',
+    }),
+  };
+  estado.satelite = lerPreferencia('armanaus_base') === 'satelite';
+  estado.bases[estado.satelite ? 'satelite' : 'mapa'].addTo(estado.mapa);
+  estado.camadaSensores = L.layerGroup();
+  estado.mostrarSensores = lerPreferencia('armanaus_sensores') !== '0';
+  if (estado.mostrarSensores) estado.camadaSensores.addTo(estado.mapa);
   estado.camadaPinos = L.layerGroup().addTo(estado.mapa);
 
   // Controles flutuantes (vidro) e legenda
   const controles = document.createElement('div');
   controles.className = 'mapa-controles vidro';
   controles.innerHTML = `<button type="button" aria-label="Mostrar minha localização" data-acao="localizar">${icones.localizacao}</button><hr>
-    <button type="button" aria-label="Centralizar em Manaus" data-acao="centralizar">${icones.camadas}</button>`;
+    <button type="button" aria-label="Centralizar em Manaus" data-acao="centralizar">${icones.camadas}</button><hr>
+    <button type="button" aria-label="Mostrar mapa de satélite" aria-pressed="${estado.satelite}" data-acao="satelite">${icones.satelite}</button><hr>
+    <button type="button" aria-label="Mostrar sensores de qualidade do ar da Ufam" aria-pressed="${estado.mostrarSensores}" data-acao="sensores">${icones.sensor}</button>`;
   const legenda = document.createElement('div');
   legenda.className = 'legenda vidro';
   legenda.setAttribute('aria-label', 'Legenda');
   legenda.innerHTML = ['Recomendado', 'Com cautela', 'Grupos sensíveis', 'Não recomendado']
-    .map((t, i) => `<span><i class="ponto n${i + 1}" aria-hidden="true"></i>${t}</span>`).join('');
+    .map((t, i) => `<span><i class="ponto n${i + 1}" aria-hidden="true"></i>${t}</span>`).join('')
+    + `<span data-legenda="sensores" ${estado.mostrarSensores ? '' : 'hidden'}><i class="sensor-legenda" aria-hidden="true"></i>Sensor Qualiar (cor = PM2,5)</span>`;
   telaMapa.append(controles, legenda);
   controles.addEventListener('click', (e) => {
     const acao = e.target.closest('button')?.dataset.acao;
     if (acao === 'centralizar') estado.mapa.flyTo([-3.075, -60.02], 12);
     if (acao === 'localizar') localizarNoMapa();
+    if (acao === 'satelite') alternarSatelite(controles);
+    if (acao === 'sensores') alternarSensores(controles, legenda);
   });
+}
+
+/** localStorage pode falhar (modo privado): sem ele, vale o padrão */
+function lerPreferencia(chave) {
+  try { return localStorage.getItem(chave); } catch { return null; }
+}
+function gravarPreferencia(chave, valor) {
+  try { localStorage.setItem(chave, valor); } catch { /* ignora */ }
+}
+
+function alternarSatelite(controles) {
+  estado.mapa.removeLayer(estado.bases[estado.satelite ? 'satelite' : 'mapa']);
+  estado.satelite = !estado.satelite;
+  estado.bases[estado.satelite ? 'satelite' : 'mapa'].addTo(estado.mapa);
+  estado.bases[estado.satelite ? 'satelite' : 'mapa'].bringToBack();
+  controles.querySelector('[data-acao="satelite"]').setAttribute('aria-pressed', String(estado.satelite));
+  gravarPreferencia('armanaus_base', estado.satelite ? 'satelite' : 'mapa');
+}
+
+async function alternarSensores(controles, legenda) {
+  estado.mostrarSensores = !estado.mostrarSensores;
+  controles.querySelector('[data-acao="sensores"]').setAttribute('aria-pressed', String(estado.mostrarSensores));
+  legenda.querySelector('[data-legenda="sensores"]').hidden = !estado.mostrarSensores;
+  gravarPreferencia('armanaus_sensores', estado.mostrarSensores ? '1' : '0');
+  if (!estado.mostrarSensores) return estado.camadaSensores.remove();
+  estado.camadaSensores.addTo(estado.mapa);
+  const n = await atualizarSensores();
+  if (n === 0) avisar('Sem dados dos sensores da Ufam agora.');
+}
+
+/** Desenha os sensores do Qualiar-Ufam (PurpleAir) no mapa; devolve quantos foram desenhados */
+async function atualizarSensores() {
+  if (!estado.mostrarSensores || !estado.camadaSensores) return 0;
+  try {
+    const { sensores } = await api.sensoresQualiar();
+    estado.camadaSensores.clearLayers();
+    for (const x of sensores) {
+      const pm = String(x.pm25).replace('.', ',');
+      const html = `<div class="sensor-marcador c${x.classe}" role="img" aria-label="Sensor ${esc(x.nome)}: PM2,5 ${pm}, ${esc(x.categoria)}"></div>`;
+      L.marker([x.lat, x.lng], { icon: L.divIcon({ className: 'marcador-pino', html, iconSize: [0, 0] }), keyboard: false, zIndexOffset: -100 })
+        .bindPopup(`<b>Sensor ${esc(x.nome)}</b><br>PM2,5: ${pm} µg/m³ · ${esc(x.categoria)}<br>Medido ${haQuanto(x.vistoEm)}<br>Fonte: rede Qualiar-Ufam (PurpleAir)`)
+        .addTo(estado.camadaSensores);
+    }
+    return sensores.length;
+  } catch { return 0; }   // sem conexão ou sem dado: o mapa segue sem a camada
 }
 
 let marcadorEu = null;
@@ -243,6 +304,7 @@ async function telaMapaPrincipal() {
   const folha = app.querySelector('#folha');
   configurarFolha(folha);
   try {
+    atualizarSensores();
     const locais = await carregarLocais();
     desenharPinos(locais);
     const ordenados = ordenarRecomendados(locais);
@@ -394,6 +456,35 @@ async function telaLocal(id, { foto = false } = {}) {
   if (foto) abrirFolhaFoto(local);
 }
 
+/** De onde veio a condição atual do local (sensor próprio, Qualiar-Ufam ou modelo) */
+function textoFonteLocal(l) {
+  const c = l.condicao;
+  if (c.fonte === 'sensor') return 'sensor ArManaus do local';
+  if (c.fonte === 'qualiar-ufam' && c.detalhe) {
+    const d = c.detalhe;
+    const quem = d.origem === 'sensor'
+      ? `sensor ${d.sensor}, a ${String(d.distanciaKm).replace('.', ',')} km`
+      : `mediana dos ${d.nSensores} sensores de Manaus`;
+    return `PM2,5 medido pela rede Qualiar-Ufam (${quem}, PurpleAir); temperatura e umidade do ${textoFonte(l.dados)}`;
+  }
+  return textoFonte(l.dados);
+}
+
+/** Cartão de focos de queimada (INPE); some quando ainda não há dado recente */
+function cartaoQueimadas(q, a) {
+  if (!q) return '';
+  const perto = q.focosPerto > 0;
+  const texto = q.focos24h === 0
+    ? `Nenhum foco de queimada detectado a menos de ${q.raioInfoKm} km nas últimas 24 horas.`
+    : `${q.focos24h} ${q.focos24h === 1 ? 'foco' : 'focos'} a menos de ${q.raioInfoKm} km nas últimas 24 horas; o mais próximo está a ${String(q.maisProximoKm).replace('.', ',')} km.`;
+  return `<section class="cartao-escuro" aria-label="Focos de queimada">
+        <h2>${icones.fogo}Focos de queimada</h2>
+        <p class="recomendacao" style="margin-top:0">${texto}</p>
+        ${perto ? `<p class="nota">${a.agravadoPorQueimadas ? 'Há foco a menos de ' + q.raioAgravanteKm + ' km: o alerta subiu um nível por causa da fumaça próxima.' : 'Há foco a menos de ' + q.raioAgravanteKm + ' km, mas o alerta já está no nível máximo.'}</p>` : ''}
+        <p class="nota">Fonte: INPE (Programa Queimadas), atualizado ${haQuanto(q.atualizadoEm)}.</p>
+      </section>`;
+}
+
 function desenharLocal(l) {
   const a = l.avaliacao;
   const fav = estado.usuario?.favoritos?.includes(l.id);
@@ -464,6 +555,8 @@ function desenharLocal(l) {
         </section>
       </div>
 
+      ${cartaoQueimadas(l.queimadas, a)}
+
       <section class="cartao-escuro" style="display:flex;flex-direction:column;gap:12px">
         <h2 style="margin:0">${icones.camera}Fotos de quem está lá</h2>
         ${l.fotos.length ? `<div class="mosaico">${l.fotos.slice(0, 3).map((f) => `
@@ -480,7 +573,7 @@ function desenharLocal(l) {
           .map(([k, v]) => `<div class="linha-escura" style="min-height:44px"><span class="corpo"><span>${k}</span></span><span style="font-weight:600;text-align:right">${valor(v)}</span></div>`).join('')}
       </section>
 
-      <p class="fontes">${esc(l.descricao)} Fonte dos dados: ${l.condicao.fonte === 'sensor' ? 'sensor ArManaus do local' : esc(textoFonte(l.dados))}.</p>
+      <p class="fontes">${esc(l.descricao)} Fonte dos dados: ${esc(textoFonteLocal(l))}.</p>
     </div>
   </article>`;
 
@@ -685,7 +778,7 @@ async function telaPerfil() {
       <label class="linha"><span class="corpo"><span class="titulo">Melhor horário do dia</span></span>
         <span class="interruptor"><input type="checkbox" data-campo="avisoMelhorHorario" ${u.avisoMelhorHorario ? 'checked' : ''}><span></span></span></label>
     </div>
-    <p class="rodape-secao">Os avisos chegam como notificação enquanto o ArManaus estiver aberto ou instalado na tela inicial.</p>
+    <p class="rodape-secao">Os avisos chegam como notificação. Com o app instalado na tela inicial e a permissão de notificações liberada, chegam também com o site fechado; sem isso, só enquanto ele estiver aberto.</p>
 
     <h2 class="cabecalho-secao">Acesso rápido</h2>
     <div class="grupo">
@@ -711,11 +804,18 @@ async function telaPerfil() {
     if (input.checked && input.dataset.campo.startsWith('aviso') && 'Notification' in window && Notification.permission === 'default') {
       await Notification.requestPermission();
     }
-    try { estado.usuario = (await api.atualizarPerfil({ [input.dataset.campo]: input.checked })).usuario; }
-    catch (e) { input.checked = !input.checked; avisar(e.message); }
+    try {
+      estado.usuario = (await api.atualizarPerfil({ [input.dataset.campo]: input.checked })).usuario;
+      if (input.dataset.campo === 'avisoFavorito') {
+        if (input.checked) {
+          if (await ativarPush().catch(() => false)) avisar('Avisos no celular ligados, mesmo com o site fechado.');
+        } else await desativarPush().catch(() => {});
+      }
+    } catch (e) { input.checked = !input.checked; avisar(e.message); }
   }));
   app.querySelector('[data-acao="instalar"]').addEventListener('click', instalarApp);
   app.querySelector('[data-acao="sair"]').addEventListener('click', async () => {
+    await desativarPush().catch(() => {});
     await api.sair();
     estado.usuario = null;
     avisar('Você saiu da conta');
@@ -930,6 +1030,42 @@ function carregarBibliotecaQR() {
 }
 
 // ---------------------------------------------------------------------------
+// Push (avisos com o site fechado): inscreve este navegador no servidor
+// ---------------------------------------------------------------------------
+function pushSuportado() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function chaveParaBytes(base64Url) {
+  const pad = '='.repeat((4 - (base64Url.length % 4)) % 4);
+  const bruto = atob((base64Url + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(bruto, (c) => c.charCodeAt(0));
+}
+
+/** Liga o push neste aparelho. Devolve false se o servidor ou o navegador não permitirem. */
+async function ativarPush() {
+  if (!pushSuportado()) return false;
+  const { ativo, chavePublica } = await api.pushChave().catch(() => ({}));
+  if (!ativo || !chavePublica) return false;
+  if (Notification.permission === 'default') await Notification.requestPermission();
+  if (Notification.permission !== 'granted') return false;
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveParaBytes(chavePublica) });
+  await api.pushInscrever(sub.toJSON());
+  return true;
+}
+
+async function desativarPush() {
+  if (!pushSuportado()) return;
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return;
+  await api.pushCancelar(sub.endpoint).catch(() => {});
+  await sub.unsubscribe().catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
 // Avisos: compara o nível dos favoritos com a última verificação
 // (funciona enquanto o app estiver aberto; veja o README para push no servidor)
 // ---------------------------------------------------------------------------
@@ -937,6 +1073,9 @@ async function verificarAvisos() {
   const u = estado.usuario;
   if (!u?.avisoFavorito || !('Notification' in window) || Notification.permission !== 'granted') return;
   try {
+    // Com push ligado, quem avisa é o servidor (evita notificação duplicada)
+    const regPush = await navigator.serviceWorker?.ready;
+    if (regPush && await regPush.pushManager?.getSubscription()) return;
     const locais = await carregarLocais();
     let anteriores = {};
     try { anteriores = JSON.parse(localStorage.getItem('armanaus_niveis') || '{}'); } catch { /* ignora */ }
@@ -960,6 +1099,8 @@ async function verificarAvisos() {
 async function iniciar() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   try { estado.usuario = (await api.eu()).usuario; } catch { /* offline */ }
+  // Mantém a inscrição de push em dia (só se o usuário já liberou as notificações)
+  if (estado.usuario?.avisoFavorito && pushSuportado() && Notification.permission === 'granted') ativarPush().catch(() => {});
   await rotear();
   verificarAvisos();
   setInterval(verificarAvisos, 10 * 60000);

@@ -81,6 +81,54 @@ CREATE TABLE IF NOT EXISTS previsoes (
   PRIMARY KEY (local_id, hora)
 );
 
+-- Resumo dos focos de queimada (INPE) perto de cada local, atualizado a cada hora
+CREATE TABLE IF NOT EXISTS queimadas_locais (
+  local_id TEXT PRIMARY KEY REFERENCES locais(id) ON DELETE CASCADE,
+  focos_24h INTEGER NOT NULL,           -- focos até 50 km nas últimas 24 h
+  focos_perto INTEGER NOT NULL,         -- focos até 10 km (agravam o nível)
+  mais_proximo_km REAL,                 -- distância do foco mais próximo (null se nenhum)
+  atualizado_em TEXT NOT NULL           -- ISO UTC
+);
+
+-- Leitura de PM2,5 do Qualiar-Ufam (sensores PurpleAir) para cada local
+CREATE TABLE IF NOT EXISTS qualiar_locais (
+  local_id TEXT PRIMARY KEY REFERENCES locais(id) ON DELETE CASCADE,
+  pm25 REAL NOT NULL,
+  origem TEXT NOT NULL,                 -- 'sensor' (mais próximo, até 5 km) ou 'mediana' (da cidade)
+  sensor TEXT,
+  distancia_km REAL,
+  n_sensores INTEGER,
+  gerado_em TEXT NOT NULL,              -- quando o Qualiar gerou o arquivo (ISO UTC)
+  atualizado_em TEXT NOT NULL           -- quando o ArManaus o leu (ISO UTC)
+);
+
+-- Sensores PurpleAir do Qualiar-Ufam (pontos mostrados no mapa)
+CREATE TABLE IF NOT EXISTS qualiar_sensores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  pm25 REAL NOT NULL,
+  visto_em TEXT NOT NULL,
+  gerado_em TEXT NOT NULL
+);
+
+-- Notificações push: inscrições dos navegadores e último nível avisado por favorito
+CREATE TABLE IF NOT EXISTS push_inscricoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  criada_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS push_estado (
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  local_id TEXT NOT NULL REFERENCES locais(id) ON DELETE CASCADE,
+  nivel INTEGER NOT NULL,
+  PRIMARY KEY (usuario_id, local_id)
+);
+
 -- Fotos enviadas pelos frequentadores. A localização NÃO é armazenada (LGPD).
 CREATE TABLE IF NOT EXISTS fotos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

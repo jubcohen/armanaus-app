@@ -12,3 +12,11 @@ services:
         value: production
       - key: NODE_VERSION
         value: 22.13.0
+      # Notificações push (opcional): gere as chaves com `npx web-push generate-vapid-keys`
+      # e preencha no painel do Render. Sem elas, o push fica desligado.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:contato@armanaus.app
