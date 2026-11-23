@@ -45,6 +45,11 @@ function iqar(pm25) {
   return { indice, categoria: faixa.nome };
 }
 
+/** Classe do IQAr (1 = Boa … 5 = Péssima) para uma concentração de PM2,5 */
+function classeIqar(pm25) {
+  return FAIXAS_IQAR.findIndex((f) => f.nome === iqar(pm25).categoria) + 1;
+}
+
 /**
  * Índice de calor (temperatura aparente) pela regressão de Rothfusz (1990),
  * com os ajustes do National Weather Service. Entrada e saída em °C.
@@ -120,14 +125,29 @@ function avaliar(c, perfil = {}) {
 }
 
 /**
+ * Agravante por queimadas (INPE): se há focos de fogo a até 10 km do local nas
+ * últimas 24 h, o nível sobe uma posição (máximo 4). Focos mais distantes só
+ * entram como informação na tela. Função pura: devolve uma cópia da avaliação.
+ * @param {object} aval resultado de avaliar()
+ * @param {{focosPerto?:number}|null} q resumo de queimadas do local (ou null)
+ */
+function agravarPorQueimadas(aval, q) {
+  if (!aval || !q || !(q.focosPerto > 0)) return aval;
+  const nivel = Math.min(4, aval.nivel + 1);
+  if (nivel === aval.nivel) return { ...aval, agravadoPorQueimadas: false };
+  return { ...aval, nivel, ...NIVEIS[nivel], agravadoPorQueimadas: true };
+}
+
+/**
  * Melhor janela de horário nas próximas horas (seção 4.5): calcula o nível de
  * cada hora prevista dentro do horário de funcionamento e escolhe a sequência
  * mais longa com o menor nível.
  * @param {Array<{hora:string, pm25:number, temperatura:number, umidade:number}>} horas previsões ordenadas
  * @param {{abre?:string, fecha?:string}} local horário de funcionamento "HH:MM"
  * @param {object} perfil atividade e grupo sensível
+ * @param {(aval:object)=>object} [ajuste] correção aplicada a cada hora (ex.: agravante de queimadas)
  */
-function melhorHorario(horas, local = {}, perfil = {}) {
+function melhorHorario(horas, local = {}, perfil = {}, ajuste = (a) => a) {
   const abre = hParaNum(local.abre || '05:00');
   const fecha = hParaNum(local.fecha || '22:00');
   // Mantém só as horas em que o local está aberto
@@ -136,7 +156,7 @@ function melhorHorario(horas, local = {}, perfil = {}) {
       const hh = Number(h.hora.slice(11, 13));
       return hh >= Math.floor(abre) && hh < Math.ceil(fecha);
     })
-    .map((h) => ({ hora: h.hora, nivel: avaliar(h, perfil).nivel }));
+    .map((h) => ({ hora: h.hora, nivel: ajuste(avaliar(h, perfil)).nivel }));
   if (!avaliadas.length) return null;
   const menor = Math.min(...avaliadas.map((h) => h.nivel));
   // Procura a maior sequência contínua (horas consecutivas) com o menor nível
@@ -181,5 +201,5 @@ function somaHora(iso, n) {
 
 module.exports = {
   FAIXAS_IQAR, NIVEIS, ATIVIDADES,
-  iqar, indiceCalor, categoriaCalor, nivelDoAr, nivelDoCalor, avaliar, melhorHorario, corrigirPM25,
+  iqar, classeIqar, indiceCalor, categoriaCalor, nivelDoAr, nivelDoCalor, avaliar, agravarPorQueimadas, melhorHorario, corrigirPM25,
 };

@@ -1,0 +1,108 @@
+{
+ "gerado_em": "2026-11-23T02:13:10Z",
+ "atual": {
+  "mediana": 47.2,
+  "n_sensores": 11
+ },
+ "sensores": [
+  {
+   "id": 98395,
+   "nome": "FAS-Ar",
+   "lat": -3.074871,
+   "lon": -60.008675,
+   "pm": 35.9,
+   "valido": true,
+   "visto": "2026-11-23T02:13:25Z"
+  },
+  {
+   "id": 161259,
+   "nome": "UEA_EDUCAIR_2",
+   "lat": -3.131549,
+   "lon": -60.00408,
+   "pm": 55.4,
+   "valido": true,
+   "visto": "2026-11-23T02:14:43Z"
+  },
+  {
+   "id": 161261,
+   "nome": "UEA_EducAIR_1",
+   "lat": -3.130093,
+   "lon": -60.026802,
+   "pm": 45.8,
+   "valido": true,
+   "visto": "2026-11-23T02:14:12Z"
+  },
+  {
+   "id": 161279,
+   "nome": "UEA_EducAIR_5",
+   "lat": -3.090319,
+   "lon": -59.96645,
+   "pm": 41.4,
+   "valido": true,
+   "visto": "2026-11-23T02:14:32Z"
+  },
+  {
+   "id": 165047,
+   "nome": "UEA_EducAIR_14",
+   "lat": -3.073211,
+   "lon": -59.993156,
+   "pm": 44.8,
+   "valido": true,
+   "visto": "2026-11-23T02:13:10Z"
+  },
+  {
+   "id": 165067,
+   "nome": "UEA_EducAIR_11",
+   "lat": -3.094905,
+   "lon": -59.986965,
+   "pm": 50.6,
+   "valido": true,
+   "visto": "2026-11-23T02:14:35Z"
+  },
+  {
+   "id": 177605,
+   "nome": "UEA_EducAIR_26",
+   "lat": -3.079295,
+   "lon": -59.93338,
+   "pm": 45.0,
+   "valido": true,
+   "visto": "2026-11-23T02:14:05Z"
+  },
+  {
+   "id": 181801,
+   "nome": "UEA_EducAIR_31",
+   "lat": -3.103645,
+   "lon": -60.04944,
+   "pm": 47.2,
+   "valido": true,
+   "visto": "2026-11-23T02:13:16Z"
+  },
+  {
+   "id": 181835,
+   "nome": "UEA_EducAIR_33",
+   "lat": -3.01552,
+   "lon": -59.865036,
+   "pm": 64.7,
+   "valido": true,
+   "visto": "2026-11-23T02:14:53Z"
+  },
+  {
+   "id": 181949,
+   "nome": "UEA_EducAIR_34",
+   "lat": -3.024335,
+   "lon": -60.0007,
+   "pm": 47.6,
+   "valido": true,
+   "visto": "2026-11-23T02:14:11Z"
+  },
+  {
+   "id": 205957,
+   "nome": "SEMA_MANAUS",
+   "lat": -3.08214,
+   "lon": -60.023293,
+   "pm": 52.0,
+   "valido": true,
+   "visto": "2026-11-23T02:15:07Z"
+  }
+ ]
+}

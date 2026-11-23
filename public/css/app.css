@@ -219,6 +219,22 @@ main { outline: none; }
 .legenda span { display: flex; align-items: center; gap: 7px; }
 .legenda .ponto { width: 10px; height: 10px; }
 
+/* Botões dos controles que ligam e desligam camadas */
+.mapa-controles button[aria-pressed="true"] { color: var(--destaque-forte); background: rgba(79, 127, 184, 0.2); }
+
+/* Sensores do Qualiar-Ufam: losango, para não confundir com os pinos redondos dos parques */
+.sensor-marcador { width: 16px; height: 16px; transform: translate(-50%, -50%) rotate(45deg); border: 2px solid #fff; border-radius: 3px; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45); }
+.sensor-marcador.c1, .sensor-legenda.c1 { background: #23804A; }
+.sensor-marcador.c2, .sensor-legenda.c2 { background: #E8B10E; }
+.sensor-marcador.c3, .sensor-legenda.c3 { background: #F07C1E; }
+.sensor-marcador.c4, .sensor-legenda.c4 { background: #C9303A; }
+.sensor-marcador.c5, .sensor-legenda.c5 { background: #8E3B9E; }
+.sensor-legenda { display: inline-block; width: 9px; height: 9px; border-radius: 2px; transform: rotate(45deg); background: #A0BEE0; border: 1.5px solid #fff; }
+.leaflet-popup-content-wrapper { background: var(--cartao); color: var(--texto); border-radius: 14px; }
+.leaflet-popup-tip { background: var(--cartao); }
+.leaflet-popup-content { font-family: var(--fonte); font-size: 0.8125rem; line-height: 1.4; margin: 10px 14px; }
+.leaflet-popup-content b { font-size: 0.9375rem; }
+
 /* Pinos dos locais (conteúdo, sem vidro) */
 .pino { text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translate(-50%, -50%); width: max-content; background: none; border: 0; padding: 0; }
 .pino .circulo {

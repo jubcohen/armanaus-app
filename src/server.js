@@ -9,6 +9,9 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { db, UPLOAD_DIR } = require('./db');
 const clima = require('./clima');
+const queimadas = require('./queimadas');
+const qualiar = require('./qualiar');
+const push = require('./push');
 const indice = require('./indice');
 
 const app = express();
@@ -101,15 +104,22 @@ function perfilDe(req) {
   return { atividade, grupoSensivel };
 }
 
-/** Condição atual: sensor próprio recente (< 30 min) ou leitura/previsão da hora */
+/**
+ * Condição atual, por ordem de prioridade: sensor próprio recente (< 30 min),
+ * PM2,5 do Qualiar-Ufam (sensores PurpleAir, até 3 h) ou leitura/previsão da hora.
+ * No caso do Qualiar, temperatura e umidade continuam vindo da previsão.
+ */
 function condicaoAtual(localId) {
   const limite = clima.horaManaus(new Date(Date.now() - 30 * 60000));
   const sensor = db.prepare(`SELECT * FROM leituras WHERE local_id = ? AND fonte = 'sensor' AND data_hora >= ?
     ORDER BY data_hora DESC LIMIT 1`).get(localId, limite);
   if (sensor) return { ...sensor, hora: sensor.data_hora };
   const hora = clima.horaCheiaAtual();
-  return db.prepare('SELECT *, hora AS data_hora FROM previsoes WHERE local_id = ? AND hora <= ? ORDER BY hora DESC LIMIT 1')
+  const modelo = db.prepare('SELECT *, hora AS data_hora FROM previsoes WHERE local_id = ? AND hora <= ? ORDER BY hora DESC LIMIT 1')
     .get(localId, hora);
+  const medido = qualiar.doLocal(localId);
+  if (modelo && medido) return { ...modelo, pm25: medido.pm25, fonte: 'qualiar-ufam', detalhe: medido };
+  return modelo;
 }
 
 function previsaoProximas(localId, horas = 24) {
@@ -143,14 +153,17 @@ function estaAberto(l) {
 function resumoLocal(l, perfil) {
   const atual = condicaoAtual(l.id);
   const prev = previsaoProximas(l.id);
-  const aval = atual ? indice.avaliar(atual, perfil) : null;
+  const queima = queimadas.doLocal(l.id);
+  const ajuste = (av) => indice.agravarPorQueimadas(av, queima);
+  const aval = atual ? ajuste(indice.avaliar(atual, perfil)) : null;
   return {
     id: l.id, nome: l.nome, zona: l.zona, descricao: l.descricao, lat: l.lat, lng: l.lng,
     sensorProprio: Boolean(l.sensor_proprio),
     aberto: estaAberto(l),
-    condicao: atual ? { pm25: atual.pm25, temperatura: atual.temperatura, umidade: atual.umidade, fonte: atual.fonte, hora: atual.data_hora } : null,
+    condicao: atual ? { pm25: atual.pm25, temperatura: atual.temperatura, umidade: atual.umidade, fonte: atual.fonte, hora: atual.data_hora, detalhe: atual.detalhe || null } : null,
     avaliacao: aval,
-    melhorHorario: indice.melhorHorario(prev, l, perfil),
+    melhorHorario: indice.melhorHorario(prev, l, perfil, ajuste),
+    queimadas: queima,
     fotosRecentes: fotosVisiveis(l.id).length,
   };
 }
@@ -158,7 +171,7 @@ function resumoLocal(l, perfil) {
 // ---------------------------------------------------------------------------
 // Rotas da API
 // ---------------------------------------------------------------------------
-app.get('/api/saude', (req, res) => res.json({ ok: true, dados: clima.estado() }));
+app.get('/api/saude', (req, res) => res.json({ ok: true, dados: clima.estado(), queimadas: queimadas.estado(), qualiar: qualiar.estado(), push: push.ativo() }));
 
 app.get('/api/locais', (req, res) => {
   const perfil = perfilDe(req);
@@ -173,12 +186,13 @@ app.get('/api/locais/:id', (req, res) => {
   const resumo = resumoLocal(l, perfil);
   // Recomendação para cada atividade, com o grupo sensível do perfil
   const atual = resumo.condicao;
+  const ajuste = (av) => indice.agravarPorQueimadas(av, resumo.queimadas);
   const porAtividade = Object.entries(indice.ATIVIDADES).map(([id, a]) => ({
     id, nome: a.nome,
-    avaliacao: atual ? indice.avaliar(atual, { atividade: id, grupoSensivel: perfil.grupoSensivel }) : null,
-    melhorHorario: indice.melhorHorario(previsaoProximas(l.id), l, { atividade: id, grupoSensivel: perfil.grupoSensivel }),
+    avaliacao: atual ? ajuste(indice.avaliar(atual, { atividade: id, grupoSensivel: perfil.grupoSensivel })) : null,
+    melhorHorario: indice.melhorHorario(previsaoProximas(l.id), l, { atividade: id, grupoSensivel: perfil.grupoSensivel }, ajuste),
   }));
-  const horas = previsaoProximas(l.id, 12).map((p) => ({ ...p, nivel: indice.avaliar(p, perfil).nivel }));
+  const horas = previsaoProximas(l.id, 12).map((p) => ({ ...p, nivel: ajuste(indice.avaliar(p, perfil)).nivel }));
   res.json({
     ...resumo,
     perfil,
@@ -247,6 +261,34 @@ app.post('/api/favoritos/:localId', exigeLogin, (req, res) => {
 app.delete('/api/favoritos/:localId', exigeLogin, (req, res) => {
   db.prepare('DELETE FROM favoritos WHERE usuario_id = ? AND local_id = ?').run(req.usuario.id, req.params.localId);
   res.json({ usuario: usuarioPublico(req.usuario) });
+});
+
+// ---- Sensores do Qualiar-Ufam (pontos do mapa) ----
+app.get('/api/qualiar/sensores', (req, res) => {
+  const lista = qualiar.sensores().map((x) => {
+    const ar = indice.iqar(x.pm25);
+    return { ...x, classe: indice.classeIqar(x.pm25), categoria: ar.categoria, iqar: ar.indice };
+  });
+  res.json({ sensores: lista, fonte: 'Qualiar-Ufam (sensores PurpleAir)', atualizadoEm: lista[0]?.geradoEm || null });
+});
+
+// ---- Notificações push ----
+app.get('/api/push/chave', (req, res) => res.json({ ativo: push.ativo(), chavePublica: push.ativo() ? push.chavePublica() : null }));
+
+app.post('/api/push/inscrever', exigeLogin, (req, res) => {
+  if (!push.ativo()) return res.status(503).json({ erro: 'Notificações no celular não estão disponíveis neste servidor.' });
+  const insc = push.validarInscricao(req.body?.inscricao);
+  if (!insc) return res.status(400).json({ erro: 'Inscrição inválida.' });
+  db.prepare(`INSERT INTO push_inscricoes (usuario_id, endpoint, p256dh, auth) VALUES (?,?,?,?)
+    ON CONFLICT(endpoint) DO UPDATE SET usuario_id = excluded.usuario_id, p256dh = excluded.p256dh, auth = excluded.auth`)
+    .run(req.usuario.id, insc.endpoint, insc.p256dh, insc.auth);
+  res.status(201).json({ ok: true });
+});
+
+app.delete('/api/push/inscrever', exigeLogin, (req, res) => {
+  const endpoint = String(req.body?.endpoint || '');
+  db.prepare('DELETE FROM push_inscricoes WHERE endpoint = ? AND usuario_id = ?').run(endpoint, req.usuario.id);
+  res.json({ ok: true });
 });
 
 // ---- Fotos (envio com confirmação de localização) ----
@@ -408,6 +450,20 @@ app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'inde
 // ---------------------------------------------------------------------------
 async function iniciar() {
   try { await clima.atualizar(); } catch (e) { console.error('[clima] falha inicial:', e.message); }
+  // Focos de queimada do INPE: se falhar, o app segue sem o agravante (resumo vencido é ignorado)
+  const focos = () => queimadas.atualizar().catch((e) => console.warn('[queimadas]', e.message));
+  focos();
+  setInterval(focos, 60 * 60000);
+  // Qualiar-Ufam (PM2,5 medido por sensores): se falhar, vale o modelo
+  const medidos = () => qualiar.atualizar().catch((e) => console.warn('[qualiar]', e.message));
+  medidos();
+  setInterval(medidos, 30 * 60000);
+  // Push: avisa quem tem favorito que mudou de nível (a cada 10 min; só lê o banco)
+  const avisosPush = () => push.verificar(db, (u, l) => {
+    const r = resumoLocal(l, { atividade: u.atividade, grupoSensivel: Boolean(u.grupo_sensivel) });
+    return r.avaliacao ? { nome: l.nome, nivel: r.avaliacao.nivel, curto: r.avaliacao.curto, aberto: r.aberto } : null;
+  }).catch((e) => console.warn('[push]', e.message));
+  setInterval(avisosPush, 10 * 60000);
   // Atualiza os dados a cada 30 minutos
   setInterval(() => clima.atualizar().catch((e) => console.error('[clima]', e.message)), 30 * 60000);
   // Limpa sessões vencidas uma vez por dia

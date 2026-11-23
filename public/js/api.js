@@ -44,5 +44,9 @@ export const api = {
   fotosPendentes: () => req('/api/moderacao/fotos'),
   moderar: (id, acao) => req(`/api/moderacao/fotos/${id}`, { method: 'POST', body: { acao } }),
   locaisModeracao: () => req('/api/moderacao/locais'),
+  sensoresQualiar: () => req('/api/qualiar/sensores'),
+  pushChave: () => req('/api/push/chave'),
+  pushInscrever: (inscricao) => req('/api/push/inscrever', { method: 'POST', body: { inscricao } }),
+  pushCancelar: (endpoint) => req('/api/push/inscrever', { method: 'DELETE', body: { endpoint } }),
   salvarLocal: (id, dados) => req(`/api/moderacao/locais/${encodeURIComponent(id)}`, { method: 'PUT', body: dados }),
 };

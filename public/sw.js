@@ -3,7 +3,7 @@
 // Guarda a "casca" do site para abrir rápido e funcionar como app na tela
 // inicial. Os dados (/api) sempre vêm da rede, para nunca mostrar alerta velho.
 // ============================================================================
-const VERSAO = 'armanaus-v3';
+const VERSAO = 'armanaus-v5';
 const CASCA = [
   '/', '/css/app.css', '/js/app.js', '/js/api.js', '/js/ui.js',
   '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
@@ -38,6 +38,18 @@ self.addEventListener('fetch', (e) => {
       return emCache || daRede;
     }));
   }
+});
+
+// Notificação push enviada pelo servidor (funciona com o site fechado)
+self.addEventListener('push', (e) => {
+  let dados = {};
+  try { dados = e.data ? e.data.json() : {}; } catch { dados = { titulo: 'ArManaus', corpo: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(dados.titulo || 'ArManaus', {
+    body: dados.corpo || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    data: { url: dados.url || '/mapa' },
+  }));
 });
 
 // Clique numa notificação abre a página do local
