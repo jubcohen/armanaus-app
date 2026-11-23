@@ -3,7 +3,7 @@
 // Guarda a "casca" do site para abrir rápido e funcionar como app na tela
 // inicial. Os dados (/api) sempre vêm da rede, para nunca mostrar alerta velho.
 // ============================================================================
-const VERSAO = 'armanaus-v2';
+const VERSAO = 'armanaus-v3';
 const CASCA = [
   '/', '/css/app.css', '/js/app.js', '/js/api.js', '/js/ui.js',
   '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png',
