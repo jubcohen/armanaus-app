@@ -2,7 +2,7 @@
 
 Protótipo funcional do projeto **ArManaus: sistema de alerta de qualidade do ar e conforto térmico para espaços de atividade ao ar livre em Manaus** (AP2 – Homem, Sociedade e Meio Ambiente, EST/UEA).
 
-Equipe: Davih, Julia de Brito Cohen e Pedro.
+Equipe: Davih, Julia Cohen e Pedro.
 
 O ArManaus é um site (PWA) que mostra, no mapa real de Manaus, quais parques estão bons para caminhar, correr ou pedalar agora, considerando fumaça (PM2,5 → IQAr) e calor (índice de calor), e indica o melhor horário do dia. Pode ser adicionado à tela inicial do celular.
 
